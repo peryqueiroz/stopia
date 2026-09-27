@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { Group, Phase, RoomConfig, RoomEvent } from '../shared/types';
 import { DEFAULT_CONFIG } from '../shared/defaults';
 
@@ -11,6 +12,8 @@ export interface Player {
   score: number;
   /** false para quem entrou no meio da rodada */
   playing: boolean;
+  /** credencial de reconexão; só o servidor e o próprio jogador conhecem (nunca vai no RoomView) */
+  secret: string;
 }
 
 export interface RoundState {
@@ -47,8 +50,8 @@ export function colorFor(name: string): string {
   return COLORS[h % COLORS.length];
 }
 
-export function newPlayer(id: string, name: string, now: number): Player {
-  return { id, name, color: colorFor(name), joinedAt: now, connected: true, disconnectedAt: null, score: 0, playing: true };
+export function newPlayer(id: string, name: string, now: number, secret: string = randomUUID()): Player {
+  return { id, name, color: colorFor(name), joinedAt: now, connected: true, disconnectedAt: null, score: 0, playing: true, secret };
 }
 
 export function newRoom(code: string, host: Player, now: number): Room {

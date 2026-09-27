@@ -26,19 +26,27 @@ export class RoomManager {
   }
 
   create(name: unknown, now: number): { room: Room; player: Player } {
-    const player = newPlayer(this.newId(), cleanName(name), now);
+    const player = newPlayer(this.newId(), cleanName(name), now, this.newId());
     const room = newRoom(this.newCode(), player, now);
     log(room, `${player.name} criou a sala`);
     this.rooms.set(room.code, room);
     return { room, player };
   }
 
-  join(code: string, name: unknown, password: string, playerId: string | undefined, now: number): JoinResult {
+  /** Reconecta só com id + segredo corretos; qualquer outra coisa é uma entrada nova (senha e lotação valem). */
+  join(
+    code: string,
+    name: unknown,
+    password: string,
+    playerId: string | undefined,
+    now: number,
+    secret?: string,
+  ): JoinResult {
     const room = this.rooms.get(code);
     if (!room) return { ok: false, error: 'Sala não encontrada' };
 
     const existing = playerId ? findPlayer(room, playerId) : undefined;
-    if (existing) {
+    if (existing && secret && secret === existing.secret) {
       existing.connected = true;
       existing.disconnectedAt = null;
       room.lastActivity = now;
@@ -48,7 +56,7 @@ export class RoomManager {
     if (room.config.password && password !== room.config.password) return { ok: false, error: 'Senha incorreta' };
     if (room.players.length >= room.config.maxPlayers) return { ok: false, error: 'Sala cheia' };
 
-    const player = newPlayer(this.newId(), cleanName(name), now);
+    const player = newPlayer(this.newId(), cleanName(name), now, this.newId());
     player.playing = room.phase === 'lobby';
     room.players.push(player);
     room.lastActivity = now;
@@ -93,6 +101,7 @@ export class RoomManager {
     const player = findPlayer(room, playerId);
     if (!player) return;
     room.players = room.players.filter((p) => p.id !== playerId);
+    delete room.current?.answers[playerId];
     log(room, `${player.name} saiu`);
     if (room.hostId === playerId && room.players.length > 0) {
       const next = room.players.find((p) => p.connected) ?? room.players[0];

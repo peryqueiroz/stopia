@@ -96,7 +96,7 @@ export function attachGame(httpServer: HttpServer, opts: GameServerOptions) {
         const reply = replier(ack);
         const { room, player } = rooms.create(p?.name, now());
         bind(room, player.id);
-        reply({ ok: true, code: room.code, playerId: player.id });
+        reply({ ok: true, code: room.code, playerId: player.id, secret: player.secret });
         changed(room);
       }),
     );
@@ -105,10 +105,11 @@ export function attachGame(httpServer: HttpServer, opts: GameServerOptions) {
       'room:join',
       safe('room:join', (p, ack) => {
         const reply = replier(ack);
-        const r = rooms.join(String(p?.code ?? ''), p?.name, String(p?.password ?? ''), p?.playerId, now());
+        const secret = typeof p?.secret === 'string' ? p.secret : undefined;
+        const r = rooms.join(String(p?.code ?? ''), p?.name, String(p?.password ?? ''), p?.playerId, now(), secret);
         if (!r.ok) return reply(r);
         bind(r.room, r.player.id);
-        reply({ ok: true, code: r.room.code, playerId: r.player.id });
+        reply({ ok: true, code: r.room.code, playerId: r.player.id, secret: r.player.secret });
         changed(r.room);
       }),
     );

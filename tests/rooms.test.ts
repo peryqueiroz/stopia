@@ -55,11 +55,51 @@ describe('RoomManager', () => {
     m.disconnect(room.code, player.id, 5_000);
     expect(player.connected).toBe(false);
 
-    const r = m.join(room.code, 'Outro nome', '', player.id, 20_000);
+    const r = m.join(room.code, 'Outro nome', '', player.id, 20_000, player.secret);
     expect(r.ok && r.player).toBe(player);
     expect(player.connected).toBe(true);
     expect(player.score).toBe(30);
     expect(room.current!.answers[player.id]).toEqual({ Animal: 'Abelha' });
+  });
+
+  it('id público sem o segredo certo não assume a identidade de ninguém', () => {
+    const m = manager();
+    const { room, player: ana } = m.create('Ana', 0);
+    expect(ana.secret).toBeTruthy();
+    expect(ana.secret).not.toBe(ana.id);
+
+    for (const secret of [undefined, '', 'chute']) {
+      const r = m.join(room.code, 'Intrusa', '', ana.id, 1, secret);
+      if (!r.ok) throw new Error(r.error);
+      expect(r.player).not.toBe(ana);
+      expect(r.player.id).not.toBe(ana.id);
+      expect(room.hostId).toBe(ana.id);
+    }
+
+    room.config.password = 'abc';
+    expect(m.join(room.code, 'Intrusa', '', ana.id, 2, 'chute')).toEqual({ ok: false, error: 'Senha incorreta' });
+    expect(m.join(room.code, 'Ana', '', ana.id, 3, ana.secret)).toMatchObject({ ok: true, player: ana });
+  });
+
+  it('jogador removido leva junto as respostas da rodada', () => {
+    const m = manager();
+    const { room, player: ana } = m.create('Ana', 0);
+    const bia = m.join(room.code, 'Bia', '', undefined, 1);
+    if (!bia.ok) throw new Error('join falhou');
+    room.config.categories = ['Animal'];
+    game.startGame(room, ana.id, 0, () => 0);
+    game.tick(room, 3_000, () => 0);
+    game.setAnswers(room, bia.player.id, { Animal: 'Abelha' });
+
+    m.leave(room.code, bia.player.id, 4_000);
+    expect(room.current!.answers).not.toHaveProperty(bia.player.id);
+
+    game.setAnswers(room, ana.id, { Animal: 'Anta' });
+    m.disconnect(room.code, ana.id, 5_000);
+    const caio = m.join(room.code, 'Caio', '', undefined, 6_000);
+    if (!caio.ok) throw new Error('join falhou');
+    m.sweep(65_000);
+    expect(room.current!.answers).not.toHaveProperty(ana.id);
   });
 
   it('após 60s desconectado o jogador sai e a coroa passa ao mais antigo; timers seguem', () => {
@@ -91,6 +131,19 @@ describe('RoomManager', () => {
 });
 
 describe('toView', () => {
+  it('nunca expõe o segredo de reconexão de ninguém', () => {
+    const m = manager();
+    const { room, player: ana } = m.create('Ana', 0);
+    const bia = m.join(room.code, 'Bia', '', undefined, 1);
+    if (!bia.ok) throw new Error('join falhou');
+    for (const me of [ana.id, bia.player.id]) {
+      const json = JSON.stringify(toView(room, me, 2));
+      expect(json).not.toContain(ana.secret);
+      expect(json).not.toContain(bia.player.secret);
+      expect(json).not.toContain('secret');
+    }
+  });
+
   it('esconde a senha de quem não é dono e as respostas dos outros', () => {
     const m = manager();
     const { room, player: ana } = m.create('Ana', 0);

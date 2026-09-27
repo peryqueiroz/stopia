@@ -79,8 +79,12 @@ describe('partida completa via Socket.IO', () => {
 
     const created = await a.emitWithAck('room:create', { name: 'Ana' });
     if (!created.ok) throw new Error(created.error);
-    const joined = await b.emitWithAck('room:join', { code: created.code, name: 'Bia', password: '' });
-    expect(joined.ok).toBe(true);
+    expect(created.secret).toEqual(expect.any(String));
+    // id público sem o segredo não toma o lugar (nem a coroa) de ninguém
+    const joined = await b.emitWithAck('room:join', { code: created.code, name: 'Bia', password: '', playerId: created.playerId });
+    if (!joined.ok) throw new Error(joined.error);
+    expect(joined.playerId).not.toBe(created.playerId);
+    expect(joined.secret).not.toBe(created.secret);
 
     const configured = waitFor(a, (v) => v.config.categories.length === 1 && v.config.rounds === 1);
     a.emit('config:update', { categories: ['Animal'], letters: ['A'], rounds: 1 });

@@ -66,13 +66,21 @@ export interface RoomView {
   events: RoomEvent[];
 }
 
+/** `secret` é a credencial de reconexão: só vai para o próprio jogador, nunca no RoomView. */
+export interface Joined {
+  code: string;
+  playerId: string;
+  secret: string;
+}
+
 export type Ack<T> = (res: ({ ok: true } & T) | { ok: false; error: string }) => void;
 
 export interface ClientToServer {
-  'room:create': (p: { name: string }, ack: Ack<{ code: string; playerId: string }>) => void;
+  'room:create': (p: { name: string }, ack: Ack<Joined>) => void;
+  /** playerId + secret reconectam ao mesmo lugar; sem o segredo certo é uma entrada nova */
   'room:join': (
-    p: { code: string; name: string; password: string; playerId?: string },
-    ack: Ack<{ code: string; playerId: string }>,
+    p: { code: string; name: string; password: string; playerId?: string; secret?: string },
+    ack: Ack<Joined>,
   ) => void;
   'room:leave': () => void;
   'config:update': (patch: Partial<RoomConfig>) => void;

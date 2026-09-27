@@ -1,6 +1,8 @@
 export interface Session {
   code: string;
   playerId: string;
+  /** credencial de reconexão devolvida pelo servidor */
+  secret: string;
   name: string;
 }
 

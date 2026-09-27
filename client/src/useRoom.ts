@@ -16,8 +16,8 @@ export function useRoom() {
     const rejoin = () => {
       const s = loadSession();
       if (!s) return;
-      socket.emit('room:join', { code: s.code, name: s.name, password: '', playerId: s.playerId }, (r) => {
-        if (r.ok) saveSession({ ...s, code: r.code, playerId: r.playerId });
+      socket.emit('room:join', { code: s.code, name: s.name, password: '', playerId: s.playerId, secret: s.secret }, (r) => {
+        if (r.ok) saveSession({ ...s, code: r.code, playerId: r.playerId, secret: r.secret });
         else saveSession(null);
       });
     };
@@ -34,7 +34,7 @@ export function useRoom() {
     new Promise<void>((resolve) => {
       setError('');
       socket.emit('room:create', { name }, (r) => {
-        if (r.ok) saveSession({ code: r.code, playerId: r.playerId, name });
+        if (r.ok) saveSession({ code: r.code, playerId: r.playerId, secret: r.secret, name });
         else setError(r.error);
         resolve();
       });
@@ -44,7 +44,7 @@ export function useRoom() {
     new Promise<void>((resolve) => {
       setError('');
       socket.emit('room:join', { code, name, password }, (r) => {
-        if (r.ok) saveSession({ code: r.code, playerId: r.playerId, name });
+        if (r.ok) saveSession({ code: r.code, playerId: r.playerId, secret: r.secret, name });
         else setError(r.error);
         resolve();
       });
