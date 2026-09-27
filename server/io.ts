@@ -64,7 +64,20 @@ export function attachGame(httpServer: HttpServer, opts: GameServerOptions) {
   }
 
   io.on('connection', (socket) => {
+    /** Solta o jogador ligado a este socket: cai (conta a janela de reconexão) se nenhuma outra aba o segura. */
+    function release(code: string, playerId: string) {
+      socket.leave(`p:${playerId}`);
+      if (io.sockets.adapter.rooms.get(`p:${playerId}`)?.size) return;
+      rooms.disconnect(code, playerId, now());
+      const room = rooms.rooms.get(code);
+      if (room) changed(room);
+    }
+
     function bind(room: Room, playerId: string) {
+      const old = socket.data;
+      if (old.code && old.playerId && (old.code !== room.code || old.playerId !== playerId)) {
+        release(old.code, old.playerId);
+      }
       socket.data.code = room.code;
       socket.data.playerId = playerId;
       socket.join(`p:${playerId}`);
@@ -125,12 +138,7 @@ export function attachGame(httpServer: HttpServer, opts: GameServerOptions) {
       'disconnect',
       safe('disconnect', () => {
         const { code, playerId } = socket.data;
-        if (!code || !playerId) return;
-        // outra aba do mesmo jogador ainda conectada? então ele não caiu
-        if (io.sockets.adapter.rooms.get(`p:${playerId}`)?.size) return;
-        rooms.disconnect(code, playerId, now());
-        const room = rooms.rooms.get(code);
-        if (room) changed(room);
+        if (code && playerId) release(code, playerId);
       }),
     );
   });

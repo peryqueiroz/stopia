@@ -130,4 +130,17 @@ describe('robustez do servidor', () => {
     const r = await client().timeout(1_000).emitWithAck('room:create', { name: 'Bia' });
     expect(r.ok).toBe(true);
   });
+
+  it('socket que troca de sala larga o jogador antigo, que sai após a janela de reconexão', async () => {
+    const { game, clock, client } = await startServer(okValidator(), { rng: cyclingRng() });
+    const a = client();
+    const first = await a.emitWithAck('room:create', { name: 'Ana' });
+    const second = await a.emitWithAck('room:create', { name: 'Ana' });
+    if (!first.ok || !second.ok) throw new Error('create falhou');
+    expect(first.code).not.toBe(second.code);
+
+    clock.t = 61_000;
+    await until(() => !game.rooms.rooms.has(first.code));
+    expect(game.rooms.rooms.get(second.code)?.players.map((p) => p.connected)).toEqual([true]);
+  });
 });
