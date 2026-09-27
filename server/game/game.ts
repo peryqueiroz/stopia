@@ -1,8 +1,9 @@
-import type { RoomConfig } from '../../shared/types';
+import type { Group, RoomConfig } from '../../shared/types';
 import { DURATIONS, TIME_SECONDS } from '../../shared/defaults';
 import { cleanAnswer } from '../../shared/text';
 import { findPlayer, log, type Room } from '../room';
 import { sanitizeConfig } from './config';
+import { eligibleVoters, scoreRound } from './scoring';
 
 export type Rng = () => number;
 
@@ -82,7 +83,7 @@ function lockAnswers(room: Room): void {
 }
 
 /** Avança fases por tempo. Retorna true se algo mudou. */
-export function tick(room: Room, now: number, _rng: Rng): boolean {
+export function tick(room: Room, now: number, rng: Rng): boolean {
   if (room.phaseEndsAt === null || now < room.phaseEndsAt) return false;
   switch (room.phase) {
     case 'drawing':
@@ -93,7 +94,77 @@ export function tick(room: Room, now: number, _rng: Rng): boolean {
       log(room, 'Tempo esgotado!');
       lockAnswers(room);
       return true;
+    case 'review':
+      advanceReview(room, now);
+      return true;
+    case 'roundResult':
+      if (room.round < room.config.rounds) {
+        beginRound(room, now, rng);
+      } else {
+        room.phase = 'final';
+        room.phaseEndsAt = null;
+        log(room, 'Fim de jogo!');
+      }
+      return true;
     default:
       return false;
   }
+}
+
+export function applyJudgement(room: Room, judged: Record<string, Group[]>, aiFailed: boolean, now: number): boolean {
+  if (room.phase !== 'validating' || !room.current) return false;
+  room.current.judged = judged;
+  room.current.reviewIndex = 0;
+  room.phase = 'review';
+  room.phaseEndsAt = now + DURATIONS.reviewPerCategoryMs;
+  log(room, aiFailed ? 'IA indisponível: validem manualmente' : 'IA validou as respostas');
+  return true;
+}
+
+export function currentGroups(room: Room): Group[] {
+  const c = room.current;
+  if (!c?.judged) return [];
+  return c.judged[room.config.categories[c.reviewIndex]] ?? [];
+}
+
+/** Liga/desliga o voto de contestação num grupo da categoria em revisão. */
+export function vote(room: Room, voterId: string, groupId: string): boolean {
+  if (room.phase !== 'review') return false;
+  const group = currentGroups(room).find((g) => g.id === groupId);
+  if (!group || !eligibleVoters(room, group).includes(voterId)) return false;
+  group.votes = group.votes.includes(voterId) ? group.votes.filter((v) => v !== voterId) : [...group.votes, voterId];
+  return true;
+}
+
+export function nextCategory(room: Room, playerId: string, now: number): boolean {
+  if (!isHost(room, playerId) || room.phase !== 'review') return false;
+  advanceReview(room, now);
+  return true;
+}
+
+function advanceReview(room: Room, now: number): void {
+  const c = room.current!;
+  if (c.reviewIndex < room.config.categories.length - 1) {
+    c.reviewIndex += 1;
+    room.phaseEndsAt = now + DURATIONS.reviewPerCategoryMs;
+    return;
+  }
+  c.points = scoreRound(room);
+  for (const p of room.players) p.score += c.points[p.id] ?? 0;
+  room.phase = 'roundResult';
+  room.phaseEndsAt = now + DURATIONS.roundResultMs;
+}
+
+export function playAgain(room: Room, playerId: string): boolean {
+  if (!isHost(room, playerId) || room.phase !== 'final') return false;
+  room.phase = 'lobby';
+  room.phaseEndsAt = null;
+  room.round = 0;
+  room.current = null;
+  room.usedLetters = [];
+  for (const p of room.players) {
+    p.score = 0;
+    p.playing = true;
+  }
+  return true;
 }
