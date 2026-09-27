@@ -31,29 +31,52 @@ export function Home({
 
   return (
     <main className="home">
-      <h1 className="logo">
+      <h1 className="logo" translate="no">
         Stop<span>IA</span>
       </h1>
       <p className="tagline">O Stop em que a IA é o juiz.</p>
       <form className="card home-card" onSubmit={submit}>
         <label>
-          Seu apelido
-          <input value={name} maxLength={16} onChange={(e) => setName(e.target.value)} autoFocus required />
+          <span className="field-label">Seu apelido</span>
+          <input
+            name="nickname"
+            value={name}
+            maxLength={16}
+            autoComplete="nickname"
+            spellCheck={false}
+            onChange={(e) => setName(e.target.value)}
+            autoFocus
+            required
+          />
         </label>
         <label>
-          Código da sala (deixe vazio para criar uma)
+          <span className="field-label">
+            Código da sala <small className="field-help">(deixe vazio para criar uma)</small>
+          </span>
           <input
+            name="roomCode"
             value={code}
             inputMode="numeric"
             maxLength={5}
             placeholder="ex.: 19517"
+            autoComplete="off"
+            spellCheck={false}
             onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
           />
         </label>
         {code && (
           <label>
-            Senha (se houver)
-            <input value={password} maxLength={20} onChange={(e) => setPassword(e.target.value)} />
+            <span className="field-label">
+              Senha <small className="field-help">(se houver)</small>
+            </span>
+            <input
+              name="roomPassword"
+              value={password}
+              maxLength={20}
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(e) => setPassword(e.target.value)}
+            />
           </label>
         )}
         {error && (

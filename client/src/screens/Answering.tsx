@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { TIME_SECONDS } from '../../../shared/defaults';
 import { MAX_ANSWER } from '../../../shared/text';
 import type { RoomView } from '../../../shared/types';
-import { TimerBar } from '../components';
+import { Icon, TimerBar } from '../components';
 import { socket } from '../socket';
 import { useCountdown } from '../useCountdown';
 
@@ -27,12 +27,14 @@ export function Answering({ view, offset }: { view: RoomView; offset: number }) 
       <div className="answer-grid">
         {categories.map((cat, i) => (
           <label key={cat} className={`answer-card${(answers[cat] ?? '').trim() ? ' filled' : ''}`}>
-            <span>{cat}</span>
+            <span className="answer-label">{cat}</span>
             <input
+              name={`answer-${i}`}
               value={answers[cat] ?? ''}
               maxLength={MAX_ANSWER}
               autoFocus={i === 0}
               autoComplete="off"
+              enterKeyHint="next"
               onChange={(e) => change(cat, e.target.value)}
               onKeyDown={(e) => {
                 if (e.key !== 'Enter') return;
@@ -46,6 +48,9 @@ export function Answering({ view, offset }: { view: RoomView; offset: number }) 
       </div>
       <TimerBar left={left} total={TIME_SECONDS[view.config.time] * 1000} />
       <button className="btn btn-stop big" disabled={!filled} onClick={() => socket.emit('game:stop')}>
+        <span className="stop-badge">
+          <Icon name="alert" />
+        </span>
         STOP!
       </button>
     </div>

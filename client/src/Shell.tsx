@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { RoomView } from '../../shared/types';
-import { EventFeed, Hex, PlayerList } from './components';
+import { EventFeed, Hex, Icon, PlayerList } from './components';
 import { Answering } from './screens/Answering';
 import { Drawing } from './screens/Drawing';
 import { Final } from './screens/Final';
@@ -47,45 +47,64 @@ export function Shell({ view, offset, onLeave }: { view: RoomView; offset: numbe
 
   return (
     <div className="shell">
+      <a className="skip-link" href="#palco">
+        Pular para o jogo
+      </a>
       <header className="topbar">
-        <h1 className="logo small">
+        <h1 className="logo small" translate="no">
           Stop<span>IA</span>
         </h1>
-        <div className="round-pill">
-          {inGame ? (
-            <>
-              RODADA <b>{view.round}/{view.config.rounds}</b>
-            </>
-          ) : (
-            <>
-              SALA <b>{view.code}</b>
-            </>
-          )}
+        <div className="control-bar">
+          <div className="round-pill">
+            {inGame ? (
+              <>
+                RODADA <b>{view.round}/{view.config.rounds}</b>
+              </>
+            ) : (
+              <>
+                SALA <b translate="no">{view.code}</b>
+              </>
+            )}
+          </div>
+          <Hex>
+            {inGame && view.letter ? (
+              view.letter
+            ) : (
+              <>
+                <Icon name="gear" />
+                <span className="sr-only">Configurações</span>
+              </>
+            )}
+          </Hex>
+          <div className="icon-buttons">
+            <button
+              type="button"
+              className="icon-btn"
+              aria-label={muted ? 'Ativar som' : 'Silenciar'}
+              onClick={() => {
+                setMuted(!muted);
+                setMutedState(!muted);
+              }}
+            >
+              <Icon name={muted ? 'mute' : 'volume'} />
+            </button>
+            <button type="button" className="icon-btn" aria-label="Copiar link da sala" onClick={share}>
+              <Icon name={copied ? 'check' : 'link'} />
+            </button>
+            <span className="sr-only" role="status">
+              {copied ? 'Link da sala copiado' : ''}
+            </span>
+          </div>
         </div>
-        <Hex>{inGame && view.letter ? view.letter : '⚙'}</Hex>
-        <div className="icon-buttons">
-          <button
-            className="icon-btn"
-            aria-label={muted ? 'Ativar som' : 'Silenciar'}
-            onClick={() => {
-              setMuted(!muted);
-              setMutedState(!muted);
-            }}
-          >
-            {muted ? '🔇' : '🔊'}
-          </button>
-          <button className="icon-btn" aria-label="Copiar link da sala" onClick={share}>
-            {copied ? '✓' : '🔗'}
-          </button>
-        </div>
-        <button className="btn btn-ghost leave" onClick={onLeave}>
-          SAIR ✕
+        <button type="button" className="btn leave" onClick={onLeave}>
+          SAIR
+          <Icon name="x" />
         </button>
       </header>
       <PlayerList view={view} />
-      <section className="stage card">
+      <main id="palco" className="stage card" tabIndex={-1}>
         <Screen view={view} offset={offset} />
-      </section>
+      </main>
       <EventFeed events={view.events} />
     </div>
   );

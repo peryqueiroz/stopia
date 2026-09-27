@@ -1,6 +1,6 @@
 import { DURATIONS } from '../../../shared/defaults';
 import type { RoomView } from '../../../shared/types';
-import { TimerBar } from '../components';
+import { Icon, TimerBar } from '../components';
 import { socket } from '../socket';
 import { useCountdown } from '../useCountdown';
 
@@ -25,14 +25,15 @@ export function Review({ view, offset }: { view: RoomView; offset: number }) {
           return (
             <li key={g.id} className={`group ${g.effectiveValid ? 'valid' : 'invalid'}`}>
               <div className="group-head">
-                <span aria-label={g.effectiveValid ? 'Válida' : 'Inválida'}>{g.effectiveValid ? '✅' : '❌'}</span>
+                <span className="verdict">
+                  <Icon name={g.effectiveValid ? 'check' : 'x'} />
+                  <span className="sr-only">{g.effectiveValid ? 'Válida:' : 'Inválida:'}</span>
+                </span>
                 <strong>{g.canonical}</strong>
                 {g.pending && <span className="badge">manual</span>}
+                {g.effectiveValid !== g.valid && <span className="badge badge-flip">invertido pelo grupo</span>}
               </div>
-              <p className="reason">
-                {g.reason}
-                {g.effectiveValid !== g.valid && ' — invertido pelo grupo'}
-              </p>
+              <p className="reason">{g.reason}</p>
               <p className="who">
                 {Object.entries(g.answers)
                   .map(([pid, text]) => `${names[pid] ?? '?'}: ${text}`)
@@ -53,7 +54,8 @@ export function Review({ view, offset }: { view: RoomView; offset: number }) {
       <TimerBar left={left} total={DURATIONS.reviewPerCategoryMs} />
       {isHost && (
         <button className="btn btn-primary" onClick={() => socket.emit('review:next')}>
-          Próxima ▶
+          Próxima
+          <Icon name="arrowRight" />
         </button>
       )}
     </div>
