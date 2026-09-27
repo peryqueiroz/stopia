@@ -70,6 +70,7 @@ export function Home({
               Senha <small className="field-help">(se houver)</small>
             </span>
             <input
+              type="password"
               name="roomPassword"
               value={password}
               maxLength={20}

@@ -65,8 +65,9 @@ export function Lobby({ view }: { view: RoomView; offset: number }) {
               Senha
             </span>
             <input
+              type="password"
               name="roomPassword"
-              autoComplete="off"
+              autoComplete="new-password"
               spellCheck={false}
               value={isHost ? password : c.hasPassword ? '••••••' : ''}
               maxLength={LIMITS.maxPassword}
