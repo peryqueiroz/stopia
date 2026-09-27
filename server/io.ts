@@ -47,6 +47,22 @@ export function attachGame(httpServer: HttpServer, opts: GameServerOptions) {
       .finally(() => judging.delete(room));
   }
 
+  /** Nenhuma exceção de handler pode virar erro fatal (e derrubar todas as salas em memória). */
+  function safe<A extends unknown[]>(event: string, fn: (...args: A) => void): (...args: A) => void {
+    return (...args) => {
+      try {
+        fn(...args);
+      } catch (err) {
+        console.error(`[io] erro em ${event}:`, err);
+      }
+    };
+  }
+
+  /** O cliente pode emitir sem callback: responde no vazio em vez de lançar. */
+  function replier<T>(ack: T): T {
+    return (typeof ack === 'function' ? ack : () => {}) as T;
+  }
+
   io.on('connection', (socket) => {
     function bind(room: Room, playerId: string) {
       socket.data.code = room.code;
@@ -61,22 +77,30 @@ export function attachGame(httpServer: HttpServer, opts: GameServerOptions) {
       if (fn(room, playerId) && notify) changed(room);
     }
 
-    socket.on('room:create', (p, ack) => {
-      const { room, player } = rooms.create(p?.name, now());
-      bind(room, player.id);
-      ack({ ok: true, code: room.code, playerId: player.id });
-      changed(room);
-    });
+    socket.on(
+      'room:create',
+      safe('room:create', (p, ack) => {
+        const reply = replier(ack);
+        const { room, player } = rooms.create(p?.name, now());
+        bind(room, player.id);
+        reply({ ok: true, code: room.code, playerId: player.id });
+        changed(room);
+      }),
+    );
 
-    socket.on('room:join', (p, ack) => {
-      const r = rooms.join(String(p?.code ?? ''), p?.name, String(p?.password ?? ''), p?.playerId, now());
-      if (!r.ok) return ack(r);
-      bind(r.room, r.player.id);
-      ack({ ok: true, code: r.room.code, playerId: r.player.id });
-      changed(r.room);
-    });
+    socket.on(
+      'room:join',
+      safe('room:join', (p, ack) => {
+        const reply = replier(ack);
+        const r = rooms.join(String(p?.code ?? ''), p?.name, String(p?.password ?? ''), p?.playerId, now());
+        if (!r.ok) return reply(r);
+        bind(r.room, r.player.id);
+        reply({ ok: true, code: r.room.code, playerId: r.player.id });
+        changed(r.room);
+      }),
+    );
 
-    socket.on('room:leave', () => {
+    socket.on('room:leave', safe('room:leave', () => {
       const { code, playerId } = socket.data;
       if (!code || !playerId) return;
       rooms.leave(code, playerId, now());
@@ -84,32 +108,41 @@ export function attachGame(httpServer: HttpServer, opts: GameServerOptions) {
       socket.data = {};
       const room = rooms.rooms.get(code);
       if (room) changed(room);
-    });
+    }));
 
-    socket.on('config:update', (patch) => act((room, pid) => game.updateConfig(room, pid, patch ?? {})));
-    socket.on('game:start', () => act((room, pid) => game.startGame(room, pid, now(), rng)));
-    socket.on('answers:update', (answers) => act((room, pid) => game.setAnswers(room, pid, answers ?? {}), false));
-    socket.on('game:stop', () => act((room, pid) => game.stop(room, pid, now())));
-    socket.on('review:vote', (p) => act((room, pid) => game.vote(room, pid, String(p?.groupId ?? ''))));
-    socket.on('review:next', () => act((room, pid) => game.nextCategory(room, pid, now())));
-    socket.on('game:playAgain', () => act((room, pid) => game.playAgain(room, pid)));
+    socket.on('config:update', safe('config:update', (patch) => act((room, pid) => game.updateConfig(room, pid, patch ?? {}))));
+    socket.on('game:start', safe('game:start', () => act((room, pid) => game.startGame(room, pid, now(), rng))));
+    socket.on(
+      'answers:update',
+      safe('answers:update', (answers) => act((room, pid) => game.setAnswers(room, pid, answers ?? {}), false)),
+    );
+    socket.on('game:stop', safe('game:stop', () => act((room, pid) => game.stop(room, pid, now()))));
+    socket.on('review:vote', safe('review:vote', (p) => act((room, pid) => game.vote(room, pid, String(p?.groupId ?? '')))));
+    socket.on('review:next', safe('review:next', () => act((room, pid) => game.nextCategory(room, pid, now()))));
+    socket.on('game:playAgain', safe('game:playAgain', () => act((room, pid) => game.playAgain(room, pid))));
 
-    socket.on('disconnect', () => {
-      const { code, playerId } = socket.data;
-      if (!code || !playerId) return;
-      // outra aba do mesmo jogador ainda conectada? então ele não caiu
-      if (io.sockets.adapter.rooms.get(`p:${playerId}`)?.size) return;
-      rooms.disconnect(code, playerId, now());
-      const room = rooms.rooms.get(code);
-      if (room) changed(room);
-    });
+    socket.on(
+      'disconnect',
+      safe('disconnect', () => {
+        const { code, playerId } = socket.data;
+        if (!code || !playerId) return;
+        // outra aba do mesmo jogador ainda conectada? então ele não caiu
+        if (io.sockets.adapter.rooms.get(`p:${playerId}`)?.size) return;
+        rooms.disconnect(code, playerId, now());
+        const room = rooms.rooms.get(code);
+        if (room) changed(room);
+      }),
+    );
   });
 
-  const timer = setInterval(() => {
-    const t = now();
-    for (const room of rooms.rooms.values()) if (game.tick(room, t, rng)) changed(room);
-    for (const room of rooms.sweep(t)) changed(room);
-  }, opts.tickMs ?? 250);
+  const timer = setInterval(
+    safe('tick', () => {
+      const t = now();
+      for (const room of rooms.rooms.values()) if (game.tick(room, t, rng)) changed(room);
+      for (const room of rooms.sweep(t)) changed(room);
+    }),
+    opts.tickMs ?? 250,
+  );
 
   return { io, rooms, stop: () => clearInterval(timer) };
 }

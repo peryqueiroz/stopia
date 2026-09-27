@@ -2,8 +2,8 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createServer, type Server as HttpServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { io as connect, type Socket } from 'socket.io-client';
-import { attachGame } from '../server/io';
-import type { JudgeInput } from '../server/ai/judge';
+import { attachGame, type GameServerOptions } from '../server/io';
+import type { JudgeInput, Validator } from '../server/ai/judge';
 import type { ClientToServer, RoomView, ServerToClient } from '../shared/types';
 
 type Client = Socket<ServerToClient, ClientToServer>;
@@ -22,31 +22,60 @@ function waitFor(s: Client, pred: (v: RoomView) => boolean): Promise<RoomView> {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-let cleanup: () => void = () => {};
-afterEach(() => cleanup());
+/** Espera uma condição no estado do servidor (polling). */
+async function until(pred: () => boolean, ms = 2_000): Promise<void> {
+  const end = Date.now() + ms;
+  while (!pred()) {
+    if (Date.now() > end) throw new Error('condição não atingida a tempo');
+    await sleep(10);
+  }
+}
+
+const cleanups: (() => void)[] = [];
+afterEach(() => {
+  while (cleanups.length) cleanups.pop()!();
+});
+
+function okValidator() {
+  return {
+    validate: vi.fn(async (input: JudgeInput) =>
+      input.categories.map((c) =>
+        c.answers.length ? [{ canonical: c.answers[0], answers: c.answers.map((_, i) => i), valid: true, reason: 'ok' }] : [],
+      ),
+    ),
+  };
+}
+
+/** rng que varia: com rng constante, a segunda sala sorteia o mesmo código para sempre. */
+function cyclingRng() {
+  let r = 0;
+  return () => (r = (r + 0.137) % 1);
+}
+
+async function startServer(validator: Validator, extra: Partial<GameServerOptions> = {}) {
+  const clock = { t: 0 };
+  const http: HttpServer = createServer();
+  const game = attachGame(http, { validator, now: () => clock.t, rng: () => 0, tickMs: 10, ...extra });
+  await new Promise<void>((r) => http.listen(0, r));
+  const url = `http://localhost:${(http.address() as AddressInfo).port}`;
+  cleanups.push(() => {
+    game.stop();
+    game.io.close();
+  });
+  const client = (): Client => {
+    const s: Client = connect(url, { transports: ['websocket'] });
+    cleanups.push(() => s.close());
+    return s;
+  };
+  return { game, clock, client };
+}
 
 describe('partida completa via Socket.IO', () => {
   it('cria, entra, joga uma rodada com STOP, valida pela IA e chega ao ranking final', async () => {
-    let clock = 0;
-    const validator = {
-      validate: vi.fn(async (input: JudgeInput) =>
-        input.categories.map((c) =>
-          c.answers.length ? [{ canonical: c.answers[0], answers: c.answers.map((_, i) => i), valid: true, reason: 'ok' }] : [],
-        ),
-      ),
-    };
-    const http: HttpServer = createServer();
-    const game = attachGame(http, { validator, now: () => clock, rng: () => 0, tickMs: 10 });
-    await new Promise<void>((r) => http.listen(0, r));
-    const url = `http://localhost:${(http.address() as AddressInfo).port}`;
-    const a: Client = connect(url, { transports: ['websocket'] });
-    const b: Client = connect(url, { transports: ['websocket'] });
-    cleanup = () => {
-      a.close();
-      b.close();
-      game.stop();
-      game.io.close();
-    };
+    const validator = okValidator();
+    const { clock, client } = await startServer(validator);
+    const a = client();
+    const b = client();
 
     const created = await a.emitWithAck('room:create', { name: 'Ana' });
     if (!created.ok) throw new Error(created.error);
@@ -62,7 +91,7 @@ describe('partida completa via Socket.IO', () => {
     expect((await drawing).letter).toBe('A');
 
     const answering = waitFor(a, (v) => v.phase === 'answering');
-    clock = 3_000;
+    clock.t = 3_000;
     await answering;
 
     a.emit('answers:update', { Animal: 'Abelha' });
@@ -78,7 +107,7 @@ describe('partida completa via Socket.IO', () => {
     expect(validator.validate).toHaveBeenCalledTimes(1);
 
     const result = waitFor(a, (v) => v.phase === 'roundResult');
-    clock += 15_000;
+    clock.t += 15_000;
     const rr = await result;
     expect(rr.players.map((p) => [p.name, p.score, p.roundPoints])).toEqual([
       ['Ana', 5, 5],
@@ -86,7 +115,19 @@ describe('partida completa via Socket.IO', () => {
     ]);
 
     const final = waitFor(a, (v) => v.phase === 'final');
-    clock += 8_000;
+    clock.t += 8_000;
     await final;
+  });
+});
+
+describe('robustez do servidor', () => {
+  it('emitir sem callback de ack não derruba o servidor', async () => {
+    const { client } = await startServer(okValidator(), { rng: cyclingRng() });
+    const raw = client() as unknown as { emit(ev: string, p: unknown): void };
+    raw.emit('room:create', { name: 'Sem ack' });
+    raw.emit('room:join', { code: '00000', name: 'Sem ack', password: '' });
+    await sleep(50);
+    const r = await client().timeout(1_000).emitWithAck('room:create', { name: 'Bia' });
+    expect(r.ok).toBe(true);
   });
 });
