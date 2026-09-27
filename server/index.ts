@@ -29,5 +29,6 @@ const validator: Validator = hasKey
 const httpServer = createServer(app);
 attachGame(httpServer, { validator });
 
-const port = Number(process.env.PORT) || 3000;
+const portArg = process.argv.find((a) => a.startsWith('--port='))?.slice('--port='.length);
+const port = Number(portArg || process.env.PORT) || 3000;
 httpServer.listen(port, () => console.log(`[stopia] http://localhost:${port}`));
