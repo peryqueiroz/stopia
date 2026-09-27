@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "image-to-code": {
+      "source": "openai/role-specific-plugins",
+      "sourceType": "github",
+      "skillPath": "plugins/product-design/skills/image-to-code/SKILL.md",
+      "computedHash": "651e25fb2b6bce2ed1afcb33e0247c2e58c3f52d187845b8e73c5a5a409ad97e"
+    }
+  }
+}
