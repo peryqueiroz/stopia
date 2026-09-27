@@ -1,7 +1,7 @@
 import type { Server as HttpServer } from 'node:http';
 import { Server } from 'socket.io';
 import type { ClientToServer, ServerToClient } from '../shared/types';
-import { judgeRound, type Validator } from './ai/judge';
+import { judgeRound, manualJudgement, type Validator } from './ai/judge';
 import * as game from './game/game';
 import type { Room } from './room';
 import { RoomManager } from './rooms';
@@ -17,6 +17,8 @@ export interface GameServerOptions {
   now?: () => number;
   rng?: () => number;
   tickMs?: number;
+  /** limite rígido do julgamento; padrão: AI_TIMEOUT_MS (ou 25 s) + 5 s */
+  aiTimeoutMs?: number;
 }
 
 export function attachGame(httpServer: HttpServer, opts: GameServerOptions) {
@@ -40,9 +42,21 @@ export function attachGame(httpServer: HttpServer, opts: GameServerOptions) {
   function startJudging(room: Room) {
     judging.add(room);
     const round = room.current!;
-    judgeRound(round.letter, room.config.strictness, room.config.categories, round.answers, opts.validator)
+    const categories = room.config.categories;
+    judgeRound(round.letter, room.config.strictness, categories, round.answers, opts.validator, opts.aiTimeoutMs)
       .then(({ judged, aiFailed }) => {
         if (room.current === round && game.applyJudgement(room, judged, aiFailed, now())) changed(room);
+      })
+      .catch((err) => {
+        // `validating` nunca pode virar beco sem saída: cai no mesmo modo manual de uma falha da IA
+        console.error('[io] julgamento falhou:', err);
+        try {
+          if (room.current !== round || room.phase !== 'validating') return;
+          const judged = manualJudgement(round.letter, categories, round.answers);
+          if (game.applyJudgement(room, judged, true, now())) changed(room);
+        } catch (fallbackErr) {
+          console.error('[io] modo manual falhou:', fallbackErr);
+        }
       })
       .finally(() => judging.delete(room));
   }

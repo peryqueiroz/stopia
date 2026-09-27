@@ -3,15 +3,20 @@ import { createServer, type Server as HttpServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { io as connect, type Socket } from 'socket.io-client';
 import { attachGame, type GameServerOptions } from '../server/io';
-import type { JudgeInput, Validator } from '../server/ai/judge';
+import type { JudgeGroup, JudgeInput, Validator } from '../server/ai/judge';
 import type { ClientToServer, RoomView, ServerToClient } from '../shared/types';
 
 type Client = Socket<ServerToClient, ClientToServer>;
 
-function waitFor(s: Client, pred: (v: RoomView) => boolean): Promise<RoomView> {
-  return new Promise((resolve) => {
+function waitFor(s: Client, pred: (v: RoomView) => boolean, ms = 3_000): Promise<RoomView> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      s.off('room:state', handler);
+      reject(new Error('estado esperado não chegou a tempo'));
+    }, ms);
     const handler = (v: RoomView) => {
       if (pred(v)) {
+        clearTimeout(timer);
         s.off('room:state', handler);
         resolve(v);
       }
@@ -146,5 +151,55 @@ describe('robustez do servidor', () => {
     clock.t = 61_000;
     await until(() => !game.rooms.rooms.has(first.code));
     expect(game.rooms.rooms.get(second.code)?.players.map((p) => p.connected)).toEqual([true]);
+  });
+});
+
+/** Sala de uma pessoa, uma categoria, letra A: joga até o STOP (fase `validating`). */
+async function playUntilStop(validator: Validator, extra: Partial<GameServerOptions> = {}) {
+  const server = await startServer(validator, extra);
+  const a = server.client();
+  const created = await a.emitWithAck('room:create', { name: 'Ana' });
+  if (!created.ok) throw new Error(created.error);
+  const configured = waitFor(a, (v) => v.config.categories.length === 1);
+  a.emit('config:update', { categories: ['Animal'], letters: ['A'], rounds: 1 });
+  await configured;
+  const drawing = waitFor(a, (v) => v.phase === 'drawing');
+  a.emit('game:start');
+  await drawing;
+  const answering = waitFor(a, (v) => v.phase === 'answering');
+  server.clock.t = 3_000;
+  await answering;
+  a.emit('answers:update', { Animal: 'Abelha' });
+  await sleep(30);
+  a.emit('game:stop');
+  return { ...server, a };
+}
+
+function silence(method: 'warn' | 'error') {
+  const spy = vi.spyOn(console, method).mockImplementation(() => {});
+  cleanups.push(() => spy.mockRestore());
+  return spy;
+}
+
+describe('validação nunca trava a sala', () => {
+  it('IA que nunca responde: após o limite rígido a sala vai para a revisão manual', async () => {
+    silence('warn');
+    const hung = { validate: vi.fn(() => new Promise<never>(() => {})) };
+    const { a } = await playUntilStop(hung, { aiTimeoutMs: 50 });
+    const review = await waitFor(a, (v) => v.phase === 'review');
+    expect(review.review!.groups.map((g) => [g.canonical, g.pending])).toEqual([['Abelha', true]]);
+    expect(review.events.at(-1)?.text).toBe('IA indisponível: validem manualmente');
+  });
+
+  it('julgamento que rejeita: a sala cai no modo manual em vez de ficar em validating', async () => {
+    silence('warn');
+    const error = silence('error');
+    // resposta malformada da IA (categoria que não é lista) faz o judgeRound rejeitar
+    const broken = { validate: vi.fn(async () => [42] as unknown as JudgeGroup[][]) };
+    const { a } = await playUntilStop(broken);
+    const review = await waitFor(a, (v) => v.phase === 'review');
+    expect(review.review!.groups.map((g) => [g.canonical, g.pending])).toEqual([['Abelha', true]]);
+    expect(review.events.at(-1)?.text).toBe('IA indisponível: validem manualmente');
+    expect(error).toHaveBeenCalled();
   });
 });

@@ -27,14 +27,66 @@ interface Bucket {
 
 const PENDING_REASON = 'Sem veredito da IA: votem para invalidar';
 
+type Answers = Record<string, Record<string, string>>;
+type Bucketed = { category: string; unique: Bucket[]; wrongLetter: Bucket[] }[];
+
+/** Timeout da chamada à IA (AI_TIMEOUT_MS), 25 s se ausente ou inválido. */
+export function aiTimeoutMs(): number {
+  const t = Number(process.env.AI_TIMEOUT_MS);
+  return Number.isFinite(t) && t > 0 ? t : 25_000;
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`IA não respondeu em ${ms}ms`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+/** Julgamento sem a IA: tudo pendente (válido até o grupo votar), letra errada inválida. */
+export function manualJudgement(letter: string, categories: string[], answers: Answers): Record<string, Group[]> {
+  return assemble(letter, bucketize(letter, categories, answers), null);
+}
+
+/**
+ * @param timeoutMs limite rígido do lado do servidor, independente do validador;
+ *   estourou, vale o mesmo modo manual de uma falha da IA.
+ */
 export async function judgeRound(
   letter: string,
   strictness: Strictness,
   categories: string[],
-  answers: Record<string, Record<string, string>>,
+  answers: Answers,
   validator: Validator,
+  timeoutMs: number = aiTimeoutMs() + 5_000,
 ): Promise<{ judged: Record<string, Group[]>; aiFailed: boolean }> {
-  const perCategory = categories.map((category) => {
+  const perCategory = bucketize(letter, categories, answers);
+
+  const needsAi = perCategory.some((c) => c.unique.length > 0);
+  let result: JudgeGroup[][] | null = null;
+  if (needsAi) {
+    try {
+      result = await withTimeout(
+        validator.validate({
+          letter,
+          strictness,
+          categories: perCategory.map((c) => ({ category: c.category, answers: c.unique.map((b) => b.text) })),
+        }),
+        timeoutMs,
+      );
+      if (result.length !== perCategory.length) result = null;
+    } catch (err) {
+      console.warn('[judge] IA falhou:', err);
+      result = null;
+    }
+  }
+
+  return { judged: assemble(letter, perCategory, result), aiFailed: needsAi && result === null };
+}
+
+function bucketize(letter: string, categories: string[], answers: Answers): Bucketed {
+  return categories.map((category) => {
     const buckets = new Map<string, Bucket>();
     const wrongLetter: Bucket[] = [];
     for (const [playerId, byCategory] of Object.entries(answers)) {
@@ -51,23 +103,10 @@ export async function judgeRound(
     }
     return { category, unique: [...buckets.values()], wrongLetter };
   });
+}
 
-  const needsAi = perCategory.some((c) => c.unique.length > 0);
-  let result: JudgeGroup[][] | null = null;
-  if (needsAi) {
-    try {
-      result = await validator.validate({
-        letter,
-        strictness,
-        categories: perCategory.map((c) => ({ category: c.category, answers: c.unique.map((b) => b.text) })),
-      });
-      if (result.length !== perCategory.length) result = null;
-    } catch (err) {
-      console.warn('[judge] IA falhou:', err);
-      result = null;
-    }
-  }
-
+/** Monta os grupos a partir do veredito da IA; `result` null = modo manual (tudo pendente). */
+function assemble(letter: string, perCategory: Bucketed, result: JudgeGroup[][] | null): Record<string, Group[]> {
   const judged: Record<string, Group[]> = {};
   perCategory.forEach((c, ci) => {
     const groups: Omit<Group, 'id'>[] = [];
@@ -109,5 +148,5 @@ export async function judgeRound(
     judged[c.category] = groups.map((g, gi) => ({ id: `${ci}-${gi}`, ...g }));
   });
 
-  return { judged, aiFailed: needsAi && result === null };
+  return judged;
 }

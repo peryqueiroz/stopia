@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { judgeRound, type JudgeGroup } from '../server/ai/judge';
+import { judgeRound, manualJudgement, type JudgeGroup } from '../server/ai/judge';
 
 function fake(result: JudgeGroup[][] | Error) {
   return {
@@ -92,5 +92,22 @@ describe('judgeRound', () => {
     expect(v.validate).not.toHaveBeenCalled();
     expect(aiFailed).toBe(false);
     expect(judged).toEqual({ Animal: [] });
+  });
+});
+
+describe('judgeRound com IA travada', () => {
+  it('validador que nunca responde cai no modo manual após o limite rígido', async () => {
+    const v = { validate: vi.fn(() => new Promise<JudgeGroup[][]>(() => {})) };
+    const { judged, aiFailed } = await judgeRound('G', 'flexible', ['Animal'], { p1: { Animal: 'Gato' } }, v, 20);
+    expect(aiFailed).toBe(true);
+    expect(judged['Animal']).toEqual([
+      { id: '0-0', canonical: 'Gato', answers: { p1: 'Gato' }, valid: true, pending: true, reason: 'Sem veredito da IA: votem para invalidar', votes: [] },
+    ]);
+  });
+
+  it('manualJudgement monta o mesmo julgamento pendente do modo manual', async () => {
+    const answers = { p1: { Animal: 'Gato', Cor: 'Azul' }, p2: { Animal: 'gato' } };
+    const fromFailure = await judgeRound('G', 'flexible', ['Animal', 'Cor'], answers, fake(new Error('x')));
+    expect(manualJudgement('G', ['Animal', 'Cor'], answers)).toEqual(fromFailure.judged);
   });
 });
