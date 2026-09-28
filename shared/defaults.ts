@@ -22,7 +22,7 @@ export const LIMITS = {
 } as const;
 
 export const DURATIONS = {
-  drawingMs: 3_000,
+  drawingMs: 5_000,
   reviewPerCategoryMs: 15_000,
   roundResultMs: 8_000,
   reconnectMs: 60_000,

@@ -146,7 +146,7 @@ export function attachGame(httpServer: HttpServer, opts: GameServerOptions) {
     );
     socket.on('game:stop', safe('game:stop', () => act((room, pid) => game.stop(room, pid, now()))));
     socket.on('review:vote', safe('review:vote', (p) => act((room, pid) => game.vote(room, pid, String(p?.groupId ?? '')))));
-    socket.on('review:next', safe('review:next', () => act((room, pid) => game.nextCategory(room, pid, now()))));
+    socket.on('review:skip', safe('review:skip', () => act((room, pid) => game.toggleSkip(room, pid, now()))));
     socket.on('game:playAgain', safe('game:playAgain', () => act((room, pid) => game.playAgain(room, pid))));
 
     socket.on(

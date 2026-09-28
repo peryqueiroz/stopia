@@ -24,6 +24,8 @@ export interface RoundState {
   /** categoria -> grupos julgados */
   judged: Record<string, Group[]> | null;
   reviewIndex: number;
+  /** quem pediu para pular a categoria em revisão */
+  skips: string[];
   points: Record<string, number> | null;
 }
 

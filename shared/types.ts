@@ -41,6 +41,8 @@ export interface PublicPlayer {
   playing: boolean;
   isHost: boolean;
   roundPoints: number | null;
+  /** pediu para pular a categoria em revisão */
+  skipped: boolean;
 }
 
 export interface RoomEvent {
@@ -88,7 +90,7 @@ export interface ClientToServer {
   'answers:update': (answers: Record<string, string>) => void;
   'game:stop': () => void;
   'review:vote': (p: { groupId: string }) => void;
-  'review:next': () => void;
+  'review:skip': () => void;
   'game:playAgain': () => void;
 }
 

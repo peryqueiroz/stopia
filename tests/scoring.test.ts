@@ -22,8 +22,8 @@ function g(id: string, answers: Record<string, string>, valid = true): Group {
 /** 0: sorteio → 3000: respostas → 93000: validando → 100000: revisão (até 115000) */
 function toReview(room: Room, judged: Record<string, Group[]>) {
   game.startGame(room, 'p1', 0, rng0);
-  game.tick(room, 3_000, rng0);
-  game.tick(room, 93_000, rng0);
+  game.tick(room, 5_000, rng0);
+  game.tick(room, 95_000, rng0);
   game.applyJudgement(room, judged, false, 100_000);
 }
 
@@ -74,6 +74,24 @@ describe('contestação', () => {
   });
 });
 
+describe('pular categoria', () => {
+  it('quem está offline ou fora da rodada não vota nem bloqueia', () => {
+    const room = setup(3);
+    room.config.categories = ['Série', 'Animal'];
+    toReview(room, { Série: [], Animal: [] });
+    room.players[2].connected = false;
+    expect(game.toggleSkip(room, 'p3', 100_000)).toBe(false);
+    game.toggleSkip(room, 'p1', 100_000);
+    game.toggleSkip(room, 'p2', 100_000);
+    expect(room.current!.reviewIndex).toBe(1);
+  });
+
+  it('fora da revisão não faz nada', () => {
+    const room = setup(2);
+    expect(game.toggleSkip(room, 'p1', 0)).toBe(false);
+  });
+});
+
 describe('fluxo da revisão até o fim do jogo', () => {
   it('revisa categorias, pontua, avança rodadas e termina', () => {
     const room = setup(2);
@@ -82,9 +100,15 @@ describe('fluxo da revisão até o fim do jogo', () => {
     expect(room.phase).toBe('review');
     expect(room.phaseEndsAt).toBe(115_000);
 
-    expect(game.nextCategory(room, 'p2', 100_000)).toBe(false);
-    expect(game.nextCategory(room, 'p1', 100_000)).toBe(true);
+    expect(game.toggleSkip(room, 'p1', 100_000)).toBe(true);
+    expect(room.current!.skips).toEqual(['p1']);
+    expect(room.current!.reviewIndex).toBe(0);
+    game.toggleSkip(room, 'p1', 100_000); // segundo clique desfaz
+    expect(room.current!.skips).toEqual([]);
+    game.toggleSkip(room, 'p1', 100_000);
+    game.toggleSkip(room, 'p2', 100_000); // todos pularam → avança e zera
     expect(room.current!.reviewIndex).toBe(1);
+    expect(room.current!.skips).toEqual([]);
 
     game.tick(room, 115_000, rng0);
     expect(room.phase).toBe('roundResult');
@@ -94,13 +118,13 @@ describe('fluxo da revisão até o fim do jogo', () => {
     expect(room.phase).toBe('drawing');
     expect(room.round).toBe(2);
 
-    game.tick(room, 126_000, rng0); // respostas
-    game.tick(room, 216_000, rng0); // tempo esgotado
-    game.applyJudgement(room, { Série: [], Animal: [] }, false, 216_000);
-    game.tick(room, 231_000, rng0);
-    game.tick(room, 246_000, rng0);
+    game.tick(room, 128_000, rng0); // respostas
+    game.tick(room, 218_000, rng0); // tempo esgotado
+    game.applyJudgement(room, { Série: [], Animal: [] }, false, 218_000);
+    game.tick(room, 233_000, rng0);
+    game.tick(room, 248_000, rng0);
     expect(room.phase).toBe('roundResult');
-    game.tick(room, 254_000, rng0);
+    game.tick(room, 256_000, rng0);
     expect(room.phase).toBe('final');
 
     expect(game.playAgain(room, 'p2')).toBe(false);

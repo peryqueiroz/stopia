@@ -15,7 +15,7 @@ function setup(n = 2): Room {
 
 function toAnswering(room: Room) {
   game.startGame(room, 'p1', 0, rng0);
-  game.tick(room, 3_000, rng0);
+  game.tick(room, 5_000, rng0);
 }
 
 describe('início e sorteio', () => {
@@ -26,7 +26,7 @@ describe('início e sorteio', () => {
     expect(room.phase).toBe('drawing');
     expect(room.round).toBe(1);
     expect(room.current!.letter).toBe('A');
-    expect(room.phaseEndsAt).toBe(3_000);
+    expect(room.phaseEndsAt).toBe(5_000);
     expect(game.startGame(room, 'p1', 0, rng0)).toBe(false);
   });
 
@@ -38,13 +38,21 @@ describe('início e sorteio', () => {
     expect(used).toEqual(['A']);
   });
 
-  it('sorteio vira respostas após 3s, com o tempo da config', () => {
+  it('sorteio vira respostas após 5s, com o tempo da config', () => {
     const room = setup();
     game.startGame(room, 'p1', 0, rng0);
-    expect(game.tick(room, 2_999, rng0)).toBe(false);
-    expect(game.tick(room, 3_000, rng0)).toBe(true);
+    expect(game.tick(room, 4_999, rng0)).toBe(false);
+    expect(game.tick(room, 5_000, rng0)).toBe(true);
     expect(room.phase).toBe('answering');
-    expect(room.phaseEndsAt).toBe(3_000 + 90_000);
+    expect(room.phaseEndsAt).toBe(5_000 + 90_000);
+  });
+
+  it('o mural só revela a letra quando a roleta termina', () => {
+    const room = setup();
+    game.startGame(room, 'p1', 0, rng0);
+    expect(room.events.map((e) => e.text).join()).not.toContain('letra A');
+    game.tick(room, 5_000, rng0);
+    expect(room.events.at(-1)!.text).toBe('Rodada 1: letra A');
   });
 });
 
@@ -78,7 +86,7 @@ describe('respostas e STOP', () => {
   it('fim do tempo trava a rodada sem stoppedBy', () => {
     const room = setup();
     toAnswering(room);
-    expect(game.tick(room, 93_000, rng0)).toBe(true);
+    expect(game.tick(room, 95_000, rng0)).toBe(true);
     expect(room.phase).toBe('validating');
     expect(room.current!.stoppedBy).toBeNull();
     expect(room.events.at(-1)!.text).toBe('Tempo esgotado!');

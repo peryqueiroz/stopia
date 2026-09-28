@@ -100,7 +100,7 @@ describe('partida completa via Socket.IO', () => {
     expect((await drawing).letter).toBe('A');
 
     const answering = waitFor(a, (v) => v.phase === 'answering');
-    clock.t = 3_000;
+    clock.t = 5_000;
     await answering;
 
     a.emit('answers:update', { Animal: 'Abelha' });
@@ -167,7 +167,7 @@ async function playUntilStop(validator: Validator, extra: Partial<GameServerOpti
   a.emit('game:start');
   await drawing;
   const answering = waitFor(a, (v) => v.phase === 'answering');
-  server.clock.t = 3_000;
+  server.clock.t = 5_000;
   await answering;
   a.emit('answers:update', { Animal: 'Abelha' });
   await sleep(30);

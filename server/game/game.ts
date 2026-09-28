@@ -40,10 +40,9 @@ function beginRound(room: Room, now: number, rng: Rng): void {
   room.round += 1;
   const letter = drawLetter(room.config.letters, room.usedLetters, rng);
   for (const p of room.players) p.playing = p.connected;
-  room.current = { letter, answers: {}, stoppedBy: null, judged: null, reviewIndex: 0, points: null };
+  room.current = { letter, answers: {}, stoppedBy: null, judged: null, reviewIndex: 0, skips: [], points: null };
   room.phase = 'drawing';
   room.phaseEndsAt = now + DURATIONS.drawingMs;
-  log(room, `Rodada ${room.round}: letra ${letter}`);
 }
 
 export function setAnswers(room: Room, playerId: string, answers: Record<string, string>): boolean {
@@ -87,6 +86,8 @@ export function tick(room: Room, now: number, rng: Rng): boolean {
   if (room.phaseEndsAt === null || now < room.phaseEndsAt) return false;
   switch (room.phase) {
     case 'drawing':
+      // só depois da roleta, para o mural não entregar a letra antes
+      log(room, `Rodada ${room.round}: letra ${room.current!.letter}`);
       room.phase = 'answering';
       room.phaseEndsAt = now + TIME_SECONDS[room.config.time] * 1000;
       return true;
@@ -136,14 +137,19 @@ export function vote(room: Room, voterId: string, groupId: string): boolean {
   return true;
 }
 
-export function nextCategory(room: Room, playerId: string, now: number): boolean {
-  if (!isHost(room, playerId) || room.phase !== 'review') return false;
-  advanceReview(room, now);
+/** Liga/desliga o "pular" do jogador; avança quando todos que jogam a rodada (e estão online) pularam. */
+export function toggleSkip(room: Room, playerId: string, now: number): boolean {
+  const c = room.current;
+  const player = findPlayer(room, playerId);
+  if (room.phase !== 'review' || !c || !player?.connected || !player.playing) return false;
+  c.skips = c.skips.includes(playerId) ? c.skips.filter((id) => id !== playerId) : [...c.skips, playerId];
+  if (room.players.every((p) => !p.connected || !p.playing || c.skips.includes(p.id))) advanceReview(room, now);
   return true;
 }
 
 function advanceReview(room: Room, now: number): void {
   const c = room.current!;
+  c.skips = [];
   if (c.reviewIndex < room.config.categories.length - 1) {
     c.reviewIndex += 1;
     room.phaseEndsAt = now + DURATIONS.reviewPerCategoryMs;

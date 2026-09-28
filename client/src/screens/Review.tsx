@@ -9,7 +9,8 @@ export function Review({ view, offset }: { view: RoomView; offset: number }) {
   const left = useCountdown(view.phaseEndsAt, offset);
   const names = Object.fromEntries(view.players.map((p) => [p.id, p.name]));
   const me = view.players.find((p) => p.id === view.me);
-  const isHost = view.me === view.hostId;
+  const voters = view.players.filter((p) => p.connected && p.playing);
+  const skipped = !!me?.skipped;
 
   return (
     <div className="review">
@@ -52,9 +53,13 @@ export function Review({ view, offset }: { view: RoomView; offset: number }) {
         })}
       </ul>
       <TimerBar left={left} total={DURATIONS.reviewPerCategoryMs} />
-      {isHost && (
-        <button className="btn btn-primary" onClick={() => socket.emit('review:next')}>
-          Próxima
+      {me?.playing && me.connected && (
+        <button
+          className={`btn btn-primary${skipped ? ' active' : ''}`}
+          aria-pressed={skipped}
+          onClick={() => socket.emit('review:skip')}
+        >
+          {skipped ? 'Aguardando os outros' : 'Pular'} {voters.filter((p) => p.skipped).length}/{voters.length}
           <Icon name="arrowRight" />
         </button>
       )}

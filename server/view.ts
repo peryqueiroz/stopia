@@ -42,6 +42,7 @@ export function toView(room: Room, me: string, now: number): RoomView {
       playing: p.playing,
       isHost: p.id === room.hostId,
       roundPoints: showRoundPoints ? (c?.points?.[p.id] ?? null) : null,
+      skipped: room.phase === 'review' && !!c?.skips.includes(p.id),
     })),
     round: room.round,
     letter: c?.letter ?? null,

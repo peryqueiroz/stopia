@@ -158,7 +158,7 @@ export function PlayerList({ view }: { view: RoomView }) {
         </b>
       </h2>
       <ul className="player-list">
-        {view.players.map((p) => (
+        {[...view.players].sort((a, b) => b.score - a.score).map((p) => (
           <li key={p.id} className={`player${p.id === view.me ? ' me' : ''}${p.connected ? '' : ' offline'}`}>
             <Avatar name={p.name} color={p.color} />
             <div className="player-info">
@@ -166,6 +166,12 @@ export function PlayerList({ view }: { view: RoomView }) {
                 {p.name}
                 {p.id === view.me && <span className="sr-only"> (você)</span>}
                 {!p.connected && <span className="sr-only"> (desconectado)</span>}
+                {p.skipped && (
+                  <span className="skip-mark" title="Pediu para pular">
+                    <Icon name="check" />
+                    <span className="sr-only"> (pediu para pular)</span>
+                  </span>
+                )}
               </span>
               <span className="player-score">
                 <span className="score-pill">

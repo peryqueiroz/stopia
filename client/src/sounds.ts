@@ -48,6 +48,7 @@ function tone(freq: number, ms: number, delayMs = 0, type: OscillatorType = 'sin
 export const sfx = {
   draw: () => [523, 659, 784, 1047].forEach((f, i) => tone(f, 120, i * 90, 'triangle')),
   tick: () => tone(880, 60, 0, 'square', 0.05),
+  roll: () => tone(620, 25, 0, 'square', 0.03),
   stop: () => {
     tone(220, 250, 0, 'sawtooth', 0.12);
     tone(165, 350, 120, 'sawtooth', 0.12);
@@ -66,8 +67,8 @@ export function useSounds(view: RoomView, offset: number): void {
     const from = prevPhase.current;
     prevPhase.current = view.phase;
     if (from === view.phase) return;
-    if (view.phase === 'drawing') sfx.draw();
-    else if (view.phase === 'validating') sfx.stop();
+    // o som do sorteio toca quando a roleta para (screens/Drawing.tsx)
+    if (view.phase === 'validating') sfx.stop();
     else if (view.phase === 'final') sfx.end();
   }, [view.phase]);
 

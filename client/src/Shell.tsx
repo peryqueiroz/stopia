@@ -15,7 +15,7 @@ function Screen({ view, offset }: { view: RoomView; offset: number }) {
     case 'lobby':
       return <Lobby view={view} offset={offset} />;
     case 'drawing':
-      return <Drawing letter={view.letter ?? '?'} />;
+      return <Drawing letter={view.letter ?? '?'} letters={view.config.letters} />;
     case 'answering':
       return <Answering key={view.round} view={view} offset={offset} />;
     case 'validating':
@@ -67,7 +67,7 @@ export function Shell({ view, offset, onLeave }: { view: RoomView; offset: numbe
             )}
           </div>
           <Hex>
-            {inGame && view.letter ? (
+            {inGame && view.phase !== 'drawing' && view.letter ? (
               view.letter
             ) : (
               <>

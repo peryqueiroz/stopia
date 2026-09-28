@@ -48,7 +48,7 @@ describe('RoomManager', () => {
     const { room, player } = m.create('Ana', 0);
     room.config.categories = ['Animal'];
     game.startGame(room, player.id, 0, () => 0);
-    game.tick(room, 3_000, () => 0);
+    game.tick(room, 5_000, () => 0);
     game.setAnswers(room, player.id, { Animal: 'Abelha' });
     player.score = 30;
 
@@ -88,7 +88,7 @@ describe('RoomManager', () => {
     if (!bia.ok) throw new Error('join falhou');
     room.config.categories = ['Animal'];
     game.startGame(room, ana.id, 0, () => 0);
-    game.tick(room, 3_000, () => 0);
+    game.tick(room, 5_000, () => 0);
     game.setAnswers(room, bia.player.id, { Animal: 'Abelha' });
 
     m.leave(room.code, bia.player.id, 4_000);
@@ -152,7 +152,7 @@ describe('toView', () => {
     room.config.password = 'abc';
     room.config.categories = ['Animal'];
     game.startGame(room, ana.id, 0, () => 0);
-    game.tick(room, 3_000, () => 0);
+    game.tick(room, 5_000, () => 0);
     game.setAnswers(room, ana.id, { Animal: 'Abelha' });
 
     const forBia = toView(room, bia.player.id, 4_000);
@@ -169,15 +169,15 @@ describe('toView', () => {
     const { room, player: ana } = m.create('Ana', 0);
     room.config.categories = ['Animal'];
     game.startGame(room, ana.id, 0, () => 0);
-    game.tick(room, 3_000, () => 0);
-    game.tick(room, 93_000, () => 0);
+    game.tick(room, 5_000, () => 0);
+    game.tick(room, 95_000, () => 0);
     game.applyJudgement(
       room,
       { Animal: [{ id: '0-0', canonical: 'Abelha', answers: { [ana.id]: 'abelha' }, valid: true, pending: false, reason: 'inseto', votes: [] }] },
       false,
-      93_000,
+      95_000,
     );
-    const v = toView(room, ana.id, 93_000);
+    const v = toView(room, ana.id, 95_000);
     expect(v.review).toMatchObject({ categoryIndex: 0, category: 'Animal' });
     expect(v.review!.groups[0]).toMatchObject({ effectiveValid: true, mine: true, eligibleVoters: 0 });
   });
