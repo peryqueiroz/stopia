@@ -9,6 +9,6 @@ services:
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: AI_MODEL
-        value: claude-opus-5
+        value: claude-sonnet-5
       - key: NODE_VERSION
         value: "22"

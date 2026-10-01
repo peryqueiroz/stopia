@@ -33,6 +33,6 @@ No plano gratuito o serviço dorme após 15 minutos sem uso; o primeiro acesso d
 | Variável | Padrão | Uso |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | — | chave da API da Anthropic |
-| `AI_MODEL` | `claude-opus-5` | modelo que julga as respostas |
+| `AI_MODEL` | `claude-sonnet-5` | modelo que julga as respostas |
 | `AI_TIMEOUT_MS` | `25000` | tempo máximo de espera pela IA antes da votação manual |
 | `PORT` | `3000` | porta do servidor |

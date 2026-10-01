@@ -36,7 +36,7 @@ Devolva uma entrada em "categories" para cada categoria recebida, na mesma ordem
 export class ClaudeValidator implements Validator {
   constructor(
     private client: Anthropic = new Anthropic(),
-    private model: string = process.env.AI_MODEL || 'claude-opus-5',
+    private model: string = process.env.AI_MODEL || 'claude-sonnet-5',
     private timeoutMs: number = aiTimeoutMs(),
   ) {}
 
